@@ -1,0 +1,91 @@
+name: DataBridgeEnv
+version: "1.0.0"
+description: >
+  An OpenEnv RL environment where an agent repairs data contract breakages
+  between upstream and downstream services.
+
+domain: software-engineering
+tags:
+  - openenv
+  - data-contracts
+  - api-debugging
+  - schema-validation
+  - rl-environment
+
+author: DataBridgeEnv Team
+license: MIT
+
+endpoints:
+  reset: POST /reset
+  step: POST /step
+  state: GET /state
+  tasks: GET /tasks
+  grader: POST /grader
+  baseline: POST /baseline
+
+tasks:
+  - id: easy
+    name: "Field name and type mismatch"
+    difficulty: easy
+    max_steps: 3
+    reward_range: [0.0, 1.0]
+    mismatch_types: [field_name, type_coercion]
+    description: >
+      Rename camelCase fields to snake_case and coerce string numbers into
+      the required numeric types.
+
+  - id: medium
+    name: "Shape, array, missing field, and type mismatch"
+    difficulty: medium
+    max_steps: 4
+    reward_range: [0.0, 1.0]
+    mismatch_types: [shape_nesting, array_scalar, missing_extra, type_coercion]
+    description: >
+      Flatten nested shapes, convert comma-separated values into arrays,
+      add missing required data, remove extras, and coerce numeric types.
+
+  - id: hard
+    name: "All five mismatches with schema inference"
+    difficulty: hard
+    max_steps: 5
+    reward_range: [0.0, 1.0]
+    mismatch_types: [field_name, type_coercion, shape_nesting, array_scalar, missing_extra]
+    description: >
+      Infer the expected contract from example pairs and then fix a live
+      payload containing all mismatch categories at once.
+
+observation_space:
+  type: object
+  description: ContractObservation Pydantic model
+  fields:
+    - task_id
+    - episode_id
+    - broken_payload
+    - target_schema
+    - schema_examples
+    - mismatch_hints
+    - step_number
+    - max_steps
+    - done
+    - last_reward
+    - last_feedback
+
+action_space:
+  type: object
+  description: TransformAction Pydantic model
+  fields:
+    - transformed_payload
+    - reasoning
+
+reward:
+  type: float
+  range: [0.0, 1.0]
+  description: >
+    Mean per-field score with partial credit and extra-field penalties.
+    Deterministic for the same (task_id, seed, action) inputs.
+
+environment:
+  runtime: python
+  server: uvicorn
+  port: 7860
+  dockerfile: Dockerfile
