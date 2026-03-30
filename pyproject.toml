@@ -6,13 +6,17 @@ build-backend = "setuptools.build_meta"
 name = "databridge-env"
 version = "1.0.0"
 description = "OpenEnv RL environment for debugging data contract mismatches."
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
   "fastapi>=0.110.0",
   "uvicorn>=0.29.0",
   "requests>=2.31.0",
   "python-dotenv>=1.0.1",
+  "openenv-core>=0.2.0",
 ]
+
+[project.scripts]
+server = "app:main"
 
 [tool.setuptools]
 py-modules = ["app", "baseline", "environment", "generator", "grader", "models", "inference"]
