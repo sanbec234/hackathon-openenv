@@ -10,7 +10,14 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app import app, main  # re-export existing FastAPI app and runner
+from app import app as root_app, main as root_main  # re-export existing FastAPI app and runner
+
+app = root_app
+
+
+def main() -> None:
+    """Entry point expected by multi-mode validators."""
+    root_main()
 
 
 if __name__ == "__main__":
