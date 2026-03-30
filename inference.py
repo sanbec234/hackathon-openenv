@@ -1,86 +1,118 @@
-"""Minimal inference runner for OpenEnv submission compliance.
-
-Demonstrates agent interaction via:
-1) POST /reset
-2) repeated POST /step until done
-3) final reward summary
-"""
-
-import argparse
+import json
 import os
 
 import requests
+from openai import OpenAI
+
+BASE_URL = os.getenv("BASE_URL", "http://localhost:7860").rstrip("/")
+TASK_ID = os.getenv("TASK_ID", "easy")
+MAX_STEPS = int(os.getenv("MAX_STEPS", "8"))
+API_BASE_URL = os.getenv("API_BASE_URL")
+API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
+
+try:
+    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+except Exception:
+    client = None
+
+SYSTEM_PROMPT = (
+    "You are a payload-repair agent. Fix the broken JSON payload to match the expected contract. "
+    "Return ONLY a valid JSON object (the corrected payload). No markdown, no explanation."
+)
 
 
-def baseline_transform(observation):
-    """Simple generic strategy: map broken payload into target schema when available."""
+def _extract_text(content):
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            str(item.get("text", "")) if isinstance(item, dict) and item.get("type") == "text" else str(item)
+            for item in content
+        )
+    return str(content)
+
+
+def _parse_json_object(raw_text):
+    if not raw_text:
+        return None
+    text = raw_text.strip()
+    candidates = [text]
+    if "```" in text:
+        for block in text.split("```"):
+            cleaned = block.replace("json", "", 1).strip()
+            if cleaned:
+                candidates.append(cleaned)
+    start, end = text.find("{"), text.rfind("}")
+    if 0 <= start < end:
+        candidates.append(text[start : end + 1])
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            pass
+    return None
+
+
+def llm_transform(observation):
     broken = observation.get("broken_payload", {})
     if not isinstance(broken, dict):
         return {}
-    schema = observation.get("target_schema")
-    if not isinstance(schema, dict) or not schema:
+    if client is None or not MODEL_NAME:
         return dict(broken)
 
-    transformed = {}
-    for key, type_name in schema.items():
-        value = broken.get(key)
-        if value is None:
-            parts = key.split("_")
-            value = broken.get(parts[0] + "".join(p.capitalize() for p in parts[1:]))
-        try:
-            if type_name == "int" and value is not None:
-                value = int(float(value))
-            elif type_name == "float" and value is not None:
-                value = float(value)
-            elif isinstance(type_name, str) and type_name.startswith("list") and isinstance(value, str):
-                value = [x.strip() for x in value.split(",") if x.strip()]
-            elif type_name == "str" and value is not None:
-                value = str(value)
-        except Exception:
-            pass
-        transformed[key] = value
-    return transformed
+    user_payload = {
+        "task_id": observation.get("task_id"),
+        "broken_payload": broken,
+        "target_schema": observation.get("target_schema"),
+        "schema_examples": observation.get("schema_examples"),
+        "mismatch_hints": observation.get("mismatch_hints"),
+        "last_feedback": observation.get("last_feedback"),
+    }
+    try:
+        completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": json.dumps(user_payload, ensure_ascii=True)},
+            ],
+            temperature=0.0,
+            max_tokens=700,
+        )
+        raw = _extract_text(completion.choices[0].message.content)
+        parsed = _parse_json_object(raw)
+        return parsed if isinstance(parsed, dict) else dict(broken)
+    except Exception:
+        return dict(broken)
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", default=os.environ.get("BASE_URL", "http://localhost:7860"))
-    parser.add_argument("--task-id", default=os.environ.get("TASK_ID", "easy"))
-    parser.add_argument("--seed", type=int, default=None)
-    args = parser.parse_args()
-    base_url = args.base_url.rstrip("/")
-
-    reset_body = {"task_id": args.task_id}
-    if args.seed is not None:
-        reset_body["seed"] = args.seed
-
     try:
-        observation = requests.post(f"{base_url}/reset", json=reset_body, timeout=15).json()
-        episode_id = observation.get("episode_id")
-        print(f"Episode started | task={args.task_id} | episode_id={episode_id} | max_steps={observation.get('max_steps')}")
+        reset_resp = requests.post(f"{BASE_URL}/reset", json={"task_id": TASK_ID}, timeout=20)
+        reset_resp.raise_for_status()
+        observation = reset_resp.json()
     except Exception as exc:
         print(f"Failed to call /reset: {exc}")
         return
 
     final_reward = {}
-    while not observation.get("done", False):
-        action = {"transformed_payload": baseline_transform(observation), "reasoning": "minimal baseline inference"}
+    steps = 0
+    while not observation.get("done", False) and steps < MAX_STEPS:
+        steps += 1
+        action = {"transformed_payload": llm_transform(observation)}
         try:
-            step_data = requests.post(f"{base_url}/step", json=action, timeout=15).json()
+            step_resp = requests.post(f"{BASE_URL}/step", json=action, timeout=20)
+            step_resp.raise_for_status()
+            step_data = step_resp.json()
         except Exception as exc:
             print(f"Failed to call /step: {exc}")
             return
         observation = step_data.get("observation", {})
         final_reward = step_data.get("reward", {})
-        print(
-            f"step={observation.get('step_number')} "
-            f"score={final_reward.get('score')} done={final_reward.get('done')}"
-        )
 
-    print("Final summary")
-    print(f"  score: {final_reward.get('score')}")
-    print(f"  done: {final_reward.get('done')}")
-    print(f"  success: {final_reward.get('success')}")
+    print(f"Final reward: {final_reward.get('score')} | done={final_reward.get('done')}")
 
 
 if __name__ == "__main__":
