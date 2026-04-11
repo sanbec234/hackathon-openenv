@@ -558,6 +558,7 @@ version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "openai" },
     { name = "openenv-core" },
     { name = "python-dotenv" },
     { name = "requests" },
@@ -567,6 +568,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.110.0" },
+    { name = "openai", specifier = ">=1.30.0" },
     { name = "openenv-core", specifier = ">=0.2.0" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "requests", specifier = ">=2.31.0" },

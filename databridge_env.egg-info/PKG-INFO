@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: databridge-env
+Version: 1.0.0
+Summary: OpenEnv RL environment for debugging data contract mismatches.
+Requires-Python: >=3.10
+Requires-Dist: fastapi>=0.110.0
+Requires-Dist: uvicorn>=0.29.0
+Requires-Dist: requests>=2.31.0
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: openai>=1.30.0
+Requires-Dist: openenv-core>=0.2.0
