@@ -14,8 +14,9 @@ BASE_URL = os.getenv("BASE_URL", "http://localhost:7860").rstrip("/")
 TASK_ID = os.getenv("TASK_ID", "easy")
 MAX_STEPS = int(os.getenv("MAX_STEPS", "8"))
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or os.getenv("OPENAI_API_KEY")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
+HF_TOKEN = os.getenv("HF_TOKEN")
+API_KEY = HF_TOKEN or os.getenv("API_KEY") or os.getenv("OPENAI_API_KEY")
 ENV_NAME = os.getenv("BENCHMARK", "databridge-env")
 
 SYSTEM_PROMPT = (
