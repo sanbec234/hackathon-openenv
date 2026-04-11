@@ -123,6 +123,11 @@ def tasks():
                 ),
                 "max_steps": 3,
                 "mismatch_types": ["field_name", "type_coercion"],
+                "grader": {
+                    "type": "float",
+                    "range": [0.0, 1.0],
+                    "description": "Field-level accuracy score comparing transformed payload to correct output.",
+                },
             },
             {
                 "task_id": "medium",
@@ -135,6 +140,11 @@ def tasks():
                 ),
                 "max_steps": 4,
                 "mismatch_types": ["shape_nesting", "array_scalar", "missing_extra", "type_coercion"],
+                "grader": {
+                    "type": "float",
+                    "range": [0.0, 1.0],
+                    "description": "Field-level accuracy score comparing transformed payload to correct output.",
+                },
             },
             {
                 "task_id": "hard",
@@ -147,6 +157,11 @@ def tasks():
                 ),
                 "max_steps": 5,
                 "mismatch_types": ["field_name", "type_coercion", "shape_nesting", "array_scalar", "missing_extra"],
+                "grader": {
+                    "type": "float",
+                    "range": [0.0, 1.0],
+                    "description": "Field-level accuracy score comparing transformed payload to correct output.",
+                },
             },
         ],
         "action_schema": {
