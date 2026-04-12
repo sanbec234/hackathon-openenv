@@ -11,7 +11,7 @@ except Exception:
 
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:7860").rstrip("/")
-TASK_ID = os.getenv("TASK_ID", "easy")
+TASK_ID = os.getenv("TASK_ID")
 MAX_STEPS = int(os.getenv("MAX_STEPS", "8"))
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
@@ -81,14 +81,26 @@ def _llm_transform(observation: Dict[str, Any], client: Any) -> Dict[str, Any]:
         return dict(broken)
 
 
-def main() -> None:
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY) if (OpenAI and API_KEY and MODEL_NAME) else None
-    print(f"[START] task={TASK_ID} env={ENV_NAME} model={MODEL_NAME}")
+def _discover_task_ids() -> list[str]:
+    if TASK_ID:
+        return [TASK_ID]
     try:
-        observation = requests.post(f"{BASE_URL}/reset", json={"task_id": TASK_ID}, timeout=20).json()
+        data = requests.get(f"{BASE_URL}/tasks", timeout=20).json()
+        task_ids = [str(t.get("task_id")) for t in data.get("tasks", []) if t.get("task_id")]
+        if task_ids:
+            return task_ids
+    except Exception:
+        pass
+    return ["easy", "medium", "hard"]
+
+
+def _run_task(task_id: str, client: Any) -> float:
+    print(f"[START] task={task_id} env={ENV_NAME} model={MODEL_NAME}")
+    try:
+        observation = requests.post(f"{BASE_URL}/reset", json={"task_id": task_id}, timeout=20).json()
     except Exception:
         print("[END] success=false steps=0 score=0.0000 rewards=")
-        return
+        return 0.0
 
     rewards, final_score, done, step = [], 0.0, bool(observation.get("done", False)), 0
     while not done and step < MAX_STEPS:
@@ -115,6 +127,14 @@ def main() -> None:
 
     success = str(done).lower()
     print(f"[END] success={success} steps={step} score={final_score:.4f} rewards={','.join(rewards)}")
+    return final_score
+
+
+def main() -> None:
+    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY) if (OpenAI and API_KEY and MODEL_NAME) else None
+    task_ids = _discover_task_ids()
+    for task_id in task_ids:
+        _run_task(task_id, client)
 
 
 if __name__ == "__main__":
